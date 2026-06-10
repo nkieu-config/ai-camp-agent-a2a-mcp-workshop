@@ -1,70 +1,87 @@
-"""Host Agent 🎯 — agent หลักที่ต่อกับโลกภายนอก 2 ทาง
+"""Host Agent 🎯 — agent หลักสำหรับวิเคราะห์หุ้น
 
-1. MCP  → ใช้ tools จาก Paper MCP Server (process แยกต่างหาก)
-2. A2A  → ส่งงานต่อให้ Summarizer Agent (อีก server / อีกเครื่อง)
-
-         ┌─────────────┐   MCP    ┌──────────────────┐
- เรา ──▶ │ Host Agent  │ ───────▶ │ paper_mcp.py     │  ค้น paper / จดโน้ต
-         │             │          └──────────────────┘
-         │             │   A2A    ┌──────────────────┐
-         │             │ ───────▶ │ Summarizer Agent │  สรุปงานวิจัย
-         └─────────────┘          │ (port 8001)      │
-                                  └──────────────────┘
+ทำงานประสานกับ A2A Server (อีกเครื่อง/อีกโปรเซส) เพื่อสรุปข้อมูล
+เรา ──▶ Host Agent ──(A2A)──▶ Summarizer Agent (CIO)
 """
 
 import os
-import sys
-from pathlib import Path
-
 from google.adk.agents import Agent
-from google.adk.agents.remote_a2a_agent import (
-    AGENT_CARD_WELL_KNOWN_PATH,
-    RemoteA2aAgent,
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent, AGENT_CARD_WELL_KNOWN_PATH
+# อย่าลืม import get_price_momentum เพิ่มเข้ามา
+from .tools import get_stock_valuation, get_3_statement_summary, get_stock_news, get_price_momentum, get_analyst_estimates
+
+# -------------------------------------------------------------
+# Agent 2.1: ลูกน้องสายพื้นฐาน (Fundamental)
+# -------------------------------------------------------------
+researcher = Agent(
+    name="market_researcher",
+    model="gemini-2.5-flash",
+    description="Equity Analyst สายพื้นฐาน (Fundamental)",
+    instruction="""
+    คุณคือ Equity Research Analyst สายพื้นฐานระดับซีเนียร์
+    กฎเหล็ก: ต้องเรียกใช้ Tools เสมอ (get_stock_valuation, get_3_statement_summary, get_stock_news, get_analyst_estimates)
+    
+    เมื่อได้ข้อมูลแล้ว ให้วิเคราะห์เจาะลึกโดยใช้กรอบความคิดดังนี้:
+    1. จัดประเภทอุตสาหกรรม (Industry Context): หุ้นตัวนี้อยู่กลุ่มไหน? (เช่น Tech, Bank, Energy) มีธรรมชาติธุรกิจและรอบวัฏจักรอย่างไร?
+    2. มองอนาคต (Forward-Looking): เปรียบเทียบ Valuation ปัจจุบัน กับ Forward P/E และ Target Price ตลาดคาดหวังการเติบโตไว้สูงหรือต่ำ?
+    3. จุดเปลี่ยนของธุรกิจ (Turnaround vs Value Trap): หากบริษัทขาดทุนอยู่ ให้ประเมินว่าเป็น Turnaround (ลงทุนเพื่ออนาคต) หรือ Value Trap (กิจการเสื่อมถอย)
+    4. ข่าวและปัจจัยเร่ง (Catalyst): มีข่าวอะไรที่จะเป็นตัวแปรสำคัญในอนาคตอันใกล้
+    
+    ส่งผลการวิเคราะห์พื้นฐานแบบ "มองข้ามช็อต" กลับไปหา 'host_agent' ทันที
+    """,
+    tools=[get_stock_valuation, get_3_statement_summary, get_stock_news, get_analyst_estimates]
 )
-from google.adk.tools.mcp_tool import StdioConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
-from mcp import StdioServerParameters
 
-# ---------- ส่วนที่ 1: ต่อ MCP server ----------
-# agent จะ start process ของ paper_mcp.py ให้เอง แล้วคุยกันผ่าน stdio
-PAPER_MCP = str(Path(__file__).parent.parent / "mcp_server" / "paper_mcp.py")
-
-paper_toolset = McpToolset(
-    connection_params=StdioConnectionParams(
-        server_params=StdioServerParameters(
-            command=sys.executable,   # python ตัวเดียวกับที่รัน adk web
-            args=[PAPER_MCP],
-        ),
-        timeout=30,
-    ),
+# -------------------------------------------------------------
+# Agent 2.2: ลูกน้องสายกราฟ (Technical)
+# -------------------------------------------------------------
+technician = Agent(
+    name="technical_analyst",
+    model="gemini-2.5-flash",
+    description="Technical Analyst ผู้เชี่ยวชาญการหากรอบราคาและจุดกลับตัว",
+    instruction="""
+    คุณคือ Technical Analyst มืออาชีพ (Chartered Market Technician)
+    กฎเหล็ก: ต้องเรียกใช้ tool `get_price_momentum` เสมอ
+    
+    เมื่อได้ข้อมูลแล้ว ให้วิเคราะห์หา Confluence (สัญญาณสอดคล้องกัน):
+    1. เทรนด์หลักจากเส้น MA ทั้ง 3 เส้น (MA20, 50, 200) ราคาเบรคหรือหลุดเส้นไหน?
+    2. สัญญาณจาก RSI มีภาวะ Overbought/Oversold ที่น่าสนใจหรือไม่?
+    3. ปริมาณซื้อขาย (Volume) สนับสนุนเทรนด์ปัจจุบันหรือไม่?
+    4. ควรกำหนดโซนแนวรับ/แนวต้านไว้ที่ประมาณเท่าไหร่?
+    
+    ส่งผลวิเคราะห์ทางเทคนิคระดับโปรกลับไปหา 'host_agent' ทันที
+    """,
+    tools=[get_price_momentum]
 )
 
-# ---------- ส่วนที่ 2: ต่อ A2A agent ----------
-# SUMMARIZER_URL = ที่อยู่ของ Summarizer Agent
-# - เครื่องตัวเอง: http://localhost:8001 (ค่าเริ่มต้น)
-# - เครื่องเพื่อน: ตั้ง env ก่อนรัน adk web เช่น
-#     SUMMARIZER_URL=http://192.168.1.42:8001 adk web
+# -------------------------------------------------------------
+# นำเข้า Agent A2A Server (CIO)
+# -------------------------------------------------------------
 SUMMARIZER_URL = os.environ.get("SUMMARIZER_URL", "http://localhost:8001")
-
 summarizer = RemoteA2aAgent(
-    name="summarizer_agent",
-    description="ผู้เชี่ยวชาญด้านการสรุปเนื้อหางานวิจัยเป็นภาษาไทย",
+    name="financial_summarizer",
+    description="ผู้เชี่ยวชาญด้านการวิเคราะห์และประเมิน (A2A)",
     agent_card=f"{SUMMARIZER_URL}{AGENT_CARD_WELL_KNOWN_PATH}",
 )
 
-# ---------- Host Agent ----------
+# -------------------------------------------------------------
+# Agent 3: Host Agent (ผู้จัดการทีม)
+# -------------------------------------------------------------
 root_agent = Agent(
     name="host_agent",
     model="gemini-2.5-flash",
-    description="ผู้ช่วยวิจัยหลัก ค้น paper ผ่าน MCP และส่งต่อให้ผู้เชี่ยวชาญสรุปผ่าน A2A",
+    description="Portfolio Manager ผู้รับคำสั่งจาก user และประสานงานทีม",
     instruction="""
-คุณคือผู้ช่วยทำวิจัยหลักของนักศึกษา พูดไทยเป็นกันเอง
+คุณคือ Portfolio Manager
+กฎเหล็กสูงสุด: ห้ามแต่งตัวเลขเอง และ ห้ามเรียก financial_summarizer จนกว่าจะได้ข้อมูลครบจากลูกน้องทั้ง 2 คน!
 
-- ค้นหา paper / จดโน้ต / อ่านโน้ต → ใช้ tools ที่มี (มาจาก MCP server)
-- เมื่อผู้ใช้อยากได้ "สรุป" เนื้อหางานวิจัย → ส่งต่อให้ summarizer_agent
-  (ผู้เชี่ยวชาญที่อยู่อีก server) เป็นคนสรุป
-- ห้ามแต่งข้อมูล paper ขึ้นมาเอง
+เมื่อผู้ใช้ต้องการวิเคราะห์หุ้น (เติม .BK ท้ายชื่อหุ้นไทยเสมอ) คุณต้องทำงานแบบ Step-by-Step ดังนี้:
+[Step 1] เรียกใช้ 'market_researcher' ให้ไปดึงงบการเงินแบบเจาะลึกและหา Catalyst -> รอข้อมูล
+[Step 2] เรียกใช้ 'technical_analyst' ให้ไปวิเคราะห์กราฟเทคนิค (RSI, MA200, Volume) -> รอข้อมูล
+[Step 3] รวบรวมข้อมูลทั้งหมดให้ละเอียด
+[Step 4] ส่งข้อมูลใน Step 3 ไปให้ 'financial_summarizer' เป็นผู้สังเคราะห์กลยุทธ์ขั้นสูงสุด 
+
+ต้องทำตาม Step 1 -> 2 -> 3 -> 4 อย่างเคร่งครัด
 """,
-    tools=[paper_toolset],
-    sub_agents=[summarizer],
+    sub_agents=[researcher, technician, summarizer]
 )

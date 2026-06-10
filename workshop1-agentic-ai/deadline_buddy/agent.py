@@ -37,6 +37,45 @@ def pick_one(choices: list[str]) -> str:
     """
     return f"ผลจับสลาก: {random.choice(choices)} 🎲"
 
+def gpa_calculator(grades: list[float]) -> str:
+    """คำนวณเกรดเฉลี่ย (GPA) แบบง่ายๆ จากรายการเกรดที่ได้
+
+    Args:
+        grades: รายการตัวเลขเกรดแต่ละวิชา (เช่น [4.0, 3.5, 3.0])
+
+    Returns:
+        ข้อความบอกเกรดเฉลี่ย
+    """
+    if not grades:
+        return "ยังไม่มีข้อมูลเกรดให้คำนวณเลยครับ"
+    gpa = sum(grades) / len(grades)
+    return f"เกรดเฉลี่ย (GPA) ที่คำนวณได้คือ {gpa:.2f} 🎓"
+
+
+def coin_flip() -> str:
+    """สุ่มทอยเหรียญเพื่อช่วยตัดสินใจ (ได้ผลลัพธ์เป็น หัว หรือ ก้อย)
+
+    Returns:
+        ข้อความบอกผลการทอยเหรียญ
+    """
+    # ใช้ random ที่มีการ import ไว้แล้วในไฟล์ของคุณ
+    result = random.choice(["หัว", "ก้อย"])
+    return f"ผลการทอยเหรียญ: ออก '{result}' ครับ! 🪙"
+
+
+def count_words(text: str) -> str:
+    """นับจำนวนคำและจำนวนตัวอักษรในข้อความ มักใช้เช็คความยาวเวลาเขียนรายงานหรือเรียงความ
+
+    Args:
+        text: ข้อความที่ต้องการนับคำและตัวอักษร
+
+    Returns:
+        ข้อความสรุปจำนวนคำและตัวอักษร
+    """
+    word_count = len(text.split())
+    char_count = len(text)
+    return f"ข้อความนี้มีทั้งหมด {word_count} คำ และ {char_count} ตัวอักษร (รวมช่องว่าง) 📝"
+
 
 root_agent = Agent(
     name="deadline_buddy",
@@ -46,8 +85,10 @@ root_agent = Agent(
 คุณคือ Deadline Buddy เพื่อนรักนักศึกษา พูดไทยติดตลกนิดๆ
 
 - ถามถึงเดดไลน์/วันสอบว่าเหลือกี่วัน → ใช้ tool days_left
-- ตัดสินใจไม่ได้ ให้ช่วยเลือก → ใช้ tool pick_one
+- ตัดสินใจไม่ได้ ให้ช่วยเลือก/จับสลาก → ใช้ tool pick_one หรือ coin_flip
+- ต้องการให้ช่วยคิดเกรดเฉลี่ย → ใช้ tool gpa_calculator
+- ต้องการเช็คความยาวของข้อความหรือรายงาน → ใช้ tool count_words
 - ถ้าเหลือเวลาน้อยกว่า 7 วัน ให้แซวเบาๆ แล้วช่วยวางแผนคร่าวๆ ให้ด้วย
 """,
-    tools=[days_left, pick_one],
+    tools=[days_left, pick_one, gpa_calculator, coin_flip, count_words],
 )
