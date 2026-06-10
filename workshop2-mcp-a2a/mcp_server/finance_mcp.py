@@ -1,7 +1,14 @@
+"""Finance MCP Server 📈 — เครื่องมือวิเคราะห์หุ้นที่ "ใครก็มาต่อใช้ได้"
+"""
+
 import yfinance as yf
 import pandas as pd
 import numpy as np
+from mcp.server.fastmcp import FastMCP
 
+mcp = FastMCP("finance-server")
+
+@mcp.tool()
 def get_stock_valuation(ticker: str) -> str:
     """ดึงข้อมูลมูลค่าหุ้นและอัตราส่วนทางการเงินที่สำคัญ (Valuation & Ratios)
     
@@ -37,6 +44,7 @@ def get_stock_valuation(ticker: str) -> str:
     except Exception as e:
         return f"ดึงข้อมูลอัตราส่วนไม่ได้: {e}"
 
+@mcp.tool()
 def get_3_statement_summary(ticker: str) -> str:
     """ดึงสรุปงบการเงิน 3 ด้าน ย้อนหลัง 3 ปี พร้อมอัตราส่วนสภาพคล่องและกำไร
     
@@ -74,6 +82,7 @@ def get_3_statement_summary(ticker: str) -> str:
     except Exception as e:
         return f"เกิดข้อผิดพลาดในการดึงงบการเงิน: {e}"
 
+@mcp.tool()
 def get_stock_news(ticker: str) -> str:
     """ดึงข่าวล่าสุดเพื่อหา Catalyst
     
@@ -88,7 +97,8 @@ def get_stock_news(ticker: str) -> str:
         return f"📰 ข่าวและ Catalyst ล่าสุดของ {ticker}:\n" + "\n".join(news_list)
     except Exception as e:
         return f"ดึงข่าวไม่ได้: {e}"
-    
+
+@mcp.tool()
 def get_price_momentum(ticker: str) -> str:
     """ดึงข้อมูล Technical Analysis ขั้นสูง (MA20/50/200, RSI, Volume) เพื่อหาจุดเข้าซื้อ
     
@@ -158,6 +168,7 @@ def get_price_momentum(ticker: str) -> str:
     except Exception as e:
         return f"ดึงข้อมูลราคาไม่ได้: {e}"
 
+@mcp.tool()
 def get_analyst_estimates(ticker: str) -> str:
     """ดึงข้อมูลคาดการณ์จากนักวิเคราะห์ (Forward Estimates & Target Price) เพื่อดูมุมมองในอนาคต
     
@@ -180,3 +191,6 @@ def get_analyst_estimates(ticker: str) -> str:
         )
     except Exception as e:
         return f"ดึงข้อมูลคาดการณ์ไม่ได้ (อาจไม่มีข้อมูลสำหรับหุ้นตัวนี้): {e}"
+
+if __name__ == "__main__":
+    mcp.run()

@@ -5,10 +5,27 @@
 """
 
 import os
+import sys
+from pathlib import Path
+
 from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent, AGENT_CARD_WELL_KNOWN_PATH
-# อย่าลืม import get_price_momentum เพิ่มเข้ามา
-from .tools import get_stock_valuation, get_3_statement_summary, get_stock_news, get_price_momentum, get_analyst_estimates
+from google.adk.tools.mcp_tool import StdioConnectionParams
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+from mcp import StdioServerParameters
+
+MCP_SERVER_SCRIPT = str(Path(__file__).parent.parent / "mcp_server" / "finance_mcp.py")
+
+finance_toolset = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=sys.executable,
+            args=[MCP_SERVER_SCRIPT],
+            env=os.environ.copy()
+        ),
+        timeout=60,
+    ),
+)
 
 # -------------------------------------------------------------
 # Agent 2.1: ลูกน้องสายพื้นฐาน (Fundamental)
@@ -29,7 +46,7 @@ researcher = Agent(
     
     ส่งผลการวิเคราะห์พื้นฐานแบบ "มองข้ามช็อต" กลับไปหา 'host_agent' ทันที
     """,
-    tools=[get_stock_valuation, get_3_statement_summary, get_stock_news, get_analyst_estimates]
+    tools=[finance_toolset]
 )
 
 # -------------------------------------------------------------
@@ -51,7 +68,7 @@ technician = Agent(
     
     ส่งผลวิเคราะห์ทางเทคนิคระดับโปรกลับไปหา 'host_agent' ทันที
     """,
-    tools=[get_price_momentum]
+    tools=[finance_toolset]
 )
 
 # -------------------------------------------------------------
