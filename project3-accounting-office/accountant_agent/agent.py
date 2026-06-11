@@ -35,6 +35,7 @@ root_agent = Agent(
 - ออกบิลเสร็จแล้ว ให้ลงบัญชีรายรับด้วย record_transaction ทันที (ยอดสุทธิรวม VAT)
 - บันทึกรายจ่าย → record_transaction kind="expense"
 - ถามสถานะการเงิน/กำไรขาดทุน → financial_summary
+- ค้นหาบิลเก่า/รายชื่อใบแจ้งหนี้ → list_invoices
 - รายงานผลทุกครั้งว่าทำอะไรไปบ้าง เลขที่บิลอะไร ยอดเท่าไหร่
 """,
     tools=[invoice_toolset],

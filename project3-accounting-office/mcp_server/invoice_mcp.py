@@ -144,6 +144,20 @@ def record_transaction(kind: str, description: str, amount: float) -> str:
 
 
 @mcp.tool()
+def list_invoices() -> list[str]:
+    """ดูรายชื่อบิล (ใบแจ้งหนี้) ทั้งหมดที่เคยออกไปแล้ว
+    
+    Returns:
+        รายการชื่อไฟล์ใบแจ้งหนี้ที่มีอยู่ในระบบ
+    """
+    if not INVOICE_DIR.exists():
+        return []
+    # ค้นหาไฟล์ .txt เป็นหลักเพื่อดึงรายชื่อบิล
+    invoices = [p.name.replace(".txt", "") for p in INVOICE_DIR.glob("INV-*.txt")]
+    return sorted(invoices)
+
+
+@mcp.tool()
 def list_transactions() -> list[dict]:
     """ดูรายการเดินบัญชีทั้งหมด (รายรับ/รายจ่ายทุกแถว) ใช้เมื่อต้องการรายละเอียดมากกว่ายอดรวม"""
     if not LEDGER_FILE.exists():
